@@ -1,0 +1,416 @@
+import SwiftUI
+
+struct NotchShape: Shape {
+    var radius: CGFloat
+    var animatableData: CGFloat {
+        get { radius }
+        set { radius = newValue }
+    }
+
+    func path(in r: CGRect) -> Path {
+        let rad = min(radius, r.height / 2, r.width / 2)
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - rad))
+        p.addQuadCurve(to: CGPoint(x: r.maxX - rad, y: r.maxY), control: CGPoint(x: r.maxX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX + rad, y: r.maxY))
+        p.addQuadCurve(to: CGPoint(x: r.minX, y: r.maxY - rad), control: CGPoint(x: r.minX, y: r.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
+struct RootView: View {
+    @ObservedObject var c: NotchController
+    @ObservedObject var store: SessionStore
+    @ObservedObject var chat: ChatEngine
+
+    var body: some View {
+        let size = c.shapeSize
+        let radius: CGFloat = c.expanded ? 26 : 12
+        VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                NotchShape(radius: radius)
+                    .fill(Color.black)
+                    .shadow(color: .black.opacity(c.expanded ? 0.5 : 0), radius: 16, y: 8)
+                Group {
+                    if c.expanded {
+                        ExpandedView(c: c, store: store, chat: chat)
+                            .padding(.top, max(c.geo.notchHeight - 4, 8))
+                            .transition(.opacity)
+                    } else if c.hasActivity {
+                        CollapsedView(store: store, chat: chat, height: c.geo.notchHeight)
+                            .transition(.opacity)
+                    }
+                }
+                .clipShape(NotchShape(radius: radius))
+            }
+            .frame(width: size.width, height: size.height)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(.spring(response: 0.36, dampingFraction: 0.82), value: c.expanded)
+        .animation(.spring(response: 0.36, dampingFraction: 0.82), value: c.hasActivity)
+        .environment(\.colorScheme, .dark)
+    }
+}
+
+struct CollapsedView: View {
+    @ObservedObject var store: SessionStore
+    @ObservedObject var chat: ChatEngine
+    let height: CGFloat
+
+    var body: some View {
+        let mood = store.mood(chatRunning: chat.isRunning)
+        HStack {
+            TucaMascot(mood: mood)
+                .frame(width: (height - 10) * 1.6, height: height - 10)
+            Spacer()
+            StatusBadge(mood: mood, count: store.workingCount)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: height)
+    }
+}
+
+struct StatusBadge: View {
+    let mood: Mood
+    let count: Int
+
+    var body: some View {
+        switch mood {
+        case .attention:
+            PulsingDot(color: SessionState.needsYou.color, size: 10)
+        case .working:
+            HStack(spacing: 4) {
+                PulsingDot(color: .orange, size: 8)
+                if count > 1 {
+                    Text("\(count)").font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                }
+            }
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(SessionState.done.color)
+        case .idle:
+            EmptyView()
+        }
+    }
+}
+
+struct PulsingDot: View {
+    let color: Color
+    var size: CGFloat = 8
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
+            let t = tl.date.timeIntervalSinceReferenceDate
+            let k = 0.5 + 0.5 * sin(t * 4)
+            ZStack {
+                Circle().fill(color.opacity(0.35 * (1 - k))).frame(width: size * (1 + k), height: size * (1 + k))
+                Circle().fill(color).frame(width: size, height: size)
+            }
+            .frame(width: size * 2, height: size * 2)
+        }
+    }
+}
+
+struct ExpandedView: View {
+    @ObservedObject var c: NotchController
+    @ObservedObject var store: SessionStore
+    @ObservedObject var chat: ChatEngine
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                TucaMascot(mood: store.mood(chatRunning: chat.isRunning))
+                    .frame(width: 40, height: 25)
+                Text("Tuca")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                Picker("", selection: $c.tab) {
+                    Text("Sessões").tag(IslandTab.sessions)
+                    Text("Chat").tag(IslandTab.chat)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 170)
+                Spacer()
+                Button { c.pinned.toggle() } label: {
+                    Image(systemName: c.pinned ? "pin.fill" : "pin")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(c.pinned ? Color.orange : Color.secondary)
+                .help("Manter aberto")
+            }
+            Group {
+                switch c.tab {
+                case .sessions: SessionsView(store: store, c: c)
+                case .chat: ChatView(chat: chat)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 16)
+        .onExitCommand { c.collapse() }
+    }
+}
+
+// MARK: - Sessões
+
+struct SessionsView: View {
+    @ObservedObject var store: SessionStore
+    @ObservedObject var c: NotchController
+
+    var body: some View {
+        if store.sessions.isEmpty {
+            VStack(spacing: 10) {
+                Spacer()
+                Text("Nenhuma sessão ativa").foregroundStyle(.secondary)
+                if !store.hooksInstalled {
+                    Text("Instale os hooks para ver o Claude Code trabalhando aqui.")
+                        .font(.caption).foregroundStyle(.tertiary)
+                    Button("Instalar hooks do Claude Code") { c.onInstallHooks?() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                } else {
+                    Text("Abra o Claude Code em qualquer projeto e ele aparece aqui.")
+                        .font(.caption).foregroundStyle(.tertiary)
+                }
+                Spacer()
+            }
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(store.sessions) { s in
+                        SessionRow(s: s) { store.remove(s.id) }
+                    }
+                }
+            }
+            .scrollIndicators(.never)
+        }
+    }
+}
+
+struct SessionRow: View {
+    let s: AgentSession
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if s.state == .working || s.state == .needsYou {
+                PulsingDot(color: s.state.color, size: 7)
+            } else {
+                Circle().fill(s.state.color).frame(width: 7, height: 7).frame(width: 14, height: 14)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(s.project)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text(s.state.label)
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(s.state.color.opacity(0.18), in: Capsule())
+                        .foregroundStyle(s.state.color)
+                }
+                Text(s.detail)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 8)
+            TimelineView(.periodic(from: .now, by: 20)) { _ in
+                Text(Self.ago(s.updated)).font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)) }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tertiary)
+                .help("Remover da lista")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(Color.white.opacity(0.06),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    static func ago(_ d: Date) -> String {
+        let s = Int(Date().timeIntervalSince(d))
+        if s < 30 { return "agora" }
+        if s < 3600 { return "\(max(1, s / 60)) min" }
+        return "\(s / 3600) h"
+    }
+}
+
+// MARK: - Chat
+
+struct ChatView: View {
+    @ObservedObject var chat: ChatEngine
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 6) {
+                ForEach(Provider.allCases) { p in
+                    ProviderChip(p: p, selected: chat.provider == p, installed: chat.available[p] != nil) {
+                        chat.provider = p
+                    }
+                    .disabled(chat.isRunning)
+                }
+                Spacer()
+                Button { chat.newChat() } label: { Image(systemName: "square.and.pencil") }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Nova conversa")
+                    .disabled(chat.isRunning)
+            }
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        if chat.messages.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Converse com o \(chat.provider.label)")
+                                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                                Text("Usa o login da CLI \(chat.provider.binary) do seu Mac. Sem API key.")
+                                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                            }
+                            .padding(.top, 6)
+                        }
+                        ForEach(chat.messages) { m in
+                            MessageBubble(m: m).id(m.id)
+                        }
+                        Color.clear.frame(height: 1).id("bottom")
+                    }
+                    .padding(.vertical, 2)
+                }
+                .scrollIndicators(.never)
+                .onChange(of: chat.revision) { _, _ in
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField("Pergunte ao \(chat.provider.label)…", text: $chat.draft, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .lineLimit(1...4)
+                    .focused($focused)
+                    .onSubmit(send)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                if chat.isRunning {
+                    Button { chat.stop() } label: {
+                        Image(systemName: "stop.circle.fill").font(.system(size: 24))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.white)
+                    .help("Parar")
+                } else {
+                    Button(action: send) {
+                        Image(systemName: "arrow.up.circle.fill").font(.system(size: 24))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(chat.draft.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : chat.provider.color)
+                    .keyboardShortcut(.return, modifiers: .command)
+                }
+            }
+        }
+        .onAppear { focused = true }
+    }
+
+    private func send() {
+        let t = chat.draft
+        guard !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !chat.isRunning else { return }
+        chat.draft = ""
+        chat.send(t)
+    }
+}
+
+struct ProviderChip: View {
+    let p: Provider
+    let selected: Bool
+    let installed: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Circle().fill(installed ? p.color : Color.gray.opacity(0.6)).frame(width: 7, height: 7)
+                Text(p.label).font(.system(size: 11, weight: .semibold))
+            }
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(Color.white.opacity(selected ? 0.17 : 0.05), in: Capsule())
+            .overlay(Capsule().stroke(selected ? p.color.opacity(0.7) : .clear, lineWidth: 1))
+            .foregroundStyle(installed ? Color.white : Color.gray)
+        }
+        .buttonStyle(.plain)
+        .help(installed ? "Usa o login da CLI \(p.binary)" : "Não instalado: \(p.installHint)")
+    }
+}
+
+struct MessageBubble: View {
+    let m: ChatMessage
+
+    var body: some View {
+        switch m.role {
+        case .user:
+            HStack {
+                Spacer(minLength: 70)
+                Text(m.text)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        case .assistant:
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    Circle().fill(m.provider.color).frame(width: 6, height: 6)
+                    Text(m.provider.label).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                }
+                if m.text.isEmpty {
+                    TypingDots(color: m.provider.color)
+                } else {
+                    Text(Self.markdown(m.text))
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        case .error:
+            Text(m.text)
+                .font(.system(size: 12))
+                .foregroundStyle(Color(red: 1, green: 0.45, blue: 0.42))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    static func markdown(_ s: String) -> AttributedString {
+        (try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(s)
+    }
+}
+
+struct TypingDots: View {
+    let color: Color
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
+            let t = tl.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .fill(color)
+                        .frame(width: 6, height: 6)
+                        .opacity(0.35 + 0.65 * max(0, sin(t * 5 - Double(i) * 0.7)))
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
