@@ -253,7 +253,7 @@ struct ChatView: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 6) {
-                ForEach(Provider.allCases) { p in
+                ForEach(Provider.allCases.filter { !$0.optional || chat.available[$0] != nil }) { p in
                     ProviderChip(p: p, selected: chat.provider == p, installed: chat.available[p] != nil) {
                         chat.provider = p
                     }

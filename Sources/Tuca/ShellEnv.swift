@@ -26,7 +26,7 @@ enum ShellEnv {
         } catch {}
         var parts = result.split(separator: ":").map(String.init)
         let home = NSHomeDirectory()
-        for extra in ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+        for extra in ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.local/bin", "\(home)/.grok/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
         where !parts.contains(extra) { parts.append(extra) }
         return parts.joined(separator: ":")
     }()

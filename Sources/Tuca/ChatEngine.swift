@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 enum Provider: String, CaseIterable, Identifiable {
-    case claude, copilot, gemini, codex
+    case claude, copilot, gemini, codex, grok, workiq
     var id: String { rawValue }
 
     var label: String {
@@ -11,6 +11,8 @@ enum Provider: String, CaseIterable, Identifiable {
         case .copilot: "Copilot"
         case .gemini: "Gemini"
         case .codex: "ChatGPT"
+        case .grok: "Grok"
+        case .workiq: "M365"
         }
     }
 
@@ -20,6 +22,8 @@ enum Provider: String, CaseIterable, Identifiable {
         case .copilot: "copilot"
         case .gemini: "gemini"
         case .codex: "codex"
+        case .grok: "grok"
+        case .workiq: "workiq"
         }
     }
 
@@ -29,8 +33,13 @@ enum Provider: String, CaseIterable, Identifiable {
         case .copilot: "npm i -g @github/copilot, depois rode copilot para fazer login"
         case .gemini: "npm i -g @google/gemini-cli, depois rode gemini e entre com sua conta Google"
         case .codex: "npm i -g @openai/codex, depois rode codex login com sua conta ChatGPT"
+        case .grok: "curl -fsSL https://x.ai/cli/install.sh | bash, depois grok login (SuperGrok ou X Premium+)"
+        case .workiq: "npm i -g @microsoft/workiq, depois workiq accept-eula (exige licença Microsoft 365 Copilot)"
         }
     }
+
+    /// Provedores opcionais só aparecem quando a CLI está instalada.
+    var optional: Bool { self == .workiq }
 
     var color: Color {
         switch self {
@@ -38,6 +47,8 @@ enum Provider: String, CaseIterable, Identifiable {
         case .copilot: Color(red: 0.64, green: 0.45, blue: 0.98)
         case .gemini: Color(red: 0.32, green: 0.56, blue: 1.0)
         case .codex: Color(red: 0.25, green: 0.78, blue: 0.55)
+        case .grok: Color(white: 0.92)
+        case .workiq: Color(red: 0.0, green: 0.62, blue: 0.95)
         }
     }
 }
@@ -169,8 +180,10 @@ final class ChatEngine: ObservableObject {
             p.arguments = args
         case .copilot:
             p.arguments = ["-p", Self.withHistory(prompt, history), "-s", "--no-color", "--model", "auto"]
-        case .gemini:
+        case .gemini, .grok:
             p.arguments = ["-p", Self.withHistory(prompt, history)]
+        case .workiq:
+            p.arguments = ["ask", "-q", Self.withHistory(prompt, history)]
         case .codex:
             let f = FileManager.default.temporaryDirectory
                 .appendingPathComponent("tuca-codex-\(UUID().uuidString).txt")
@@ -214,7 +227,7 @@ final class ChatEngine: ObservableObject {
                             MainActor.assumeIsolated { self?.handleClaude(ls, replyId: replyId, state: claudeState) }
                         }
                     }
-                case .copilot, .gemini:
+                case .copilot, .gemini, .grok, .workiq:
                     raw.append(data)
                     let text = String(decoding: raw, as: UTF8.self).strippingANSI
                     DispatchQueue.main.async {
