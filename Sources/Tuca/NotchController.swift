@@ -35,6 +35,8 @@ final class NotchController: ObservableObject {
     @Published private(set) var expanded = false
     @Published var tab: IslandTab = .sessions
     @Published var pinned = false
+    @Published var dropTargeted = false
+    private var lastDropChange = -1
     @Published private(set) var geo = NotchGeometry.current()
 
     let store: SessionStore
@@ -129,9 +131,29 @@ final class NotchController: ObservableObject {
             } else if !pinned && collapseWork == nil {
                 scheduleCollapse(after: 0.35)
             }
+        } else if isFileDrag && mouseInside(margin: 40) {
+            tab = .chat
+            expand()
         } else if mouseInside(margin: geo.hasNotch ? 0 : 6) {
             expand()
         }
+    }
+
+    /// Arraste de arquivo em andamento (vindo do Finder, da área de trabalho etc.).
+    private var isFileDrag: Bool {
+        guard NSEvent.pressedMouseButtons & 1 == 1 else { return false }
+        let pb = NSPasteboard(name: .drag)
+        return pb.changeCount != lastDropChange && (pb.types?.contains(.fileURL) ?? false)
+    }
+
+    func handleDrop(_ urls: [URL]) {
+        lastDropChange = NSPasteboard(name: .drag).changeCount
+        dropTargeted = false
+        chat.attach(urls)
+        tab = .chat
+        expand()
+        NSSound(named: "Pop")?.play()
+        panel.makeKey()
     }
 
     func expand() {

@@ -45,8 +45,17 @@ struct RootView: View {
                     }
                 }
                 .clipShape(NotchShape(radius: radius))
+                if c.expanded && c.dropTargeted {
+                    DropOverlay()
+                        .clipShape(NotchShape(radius: radius))
+                        .transition(.opacity)
+                }
             }
             .frame(width: size.width, height: size.height)
+            .dropDestination(for: URL.self) { urls, _ in
+                c.handleDrop(urls)
+                return !urls.isEmpty
+            } isTargeted: { c.dropTargeted = $0 }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -276,6 +285,8 @@ struct ChatView: View {
                                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
                                 Text("Usa o login da CLI \(chat.provider.binary) do seu Mac. Sem API key.")
                                     .font(.system(size: 11)).foregroundStyle(.secondary)
+                                Text("Arraste imagens, PDFs ou planilhas até o notch para perguntar sobre eles.")
+                                    .font(.system(size: 11)).foregroundStyle(.tertiary)
                             }
                             .padding(.top, 6)
                         }
@@ -292,8 +303,24 @@ struct ChatView: View {
                 }
             }
 
+            if !chat.attachments.isEmpty || chat.notice != nil {
+                VStack(alignment: .leading, spacing: 4) {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 6) {
+                            ForEach(chat.attachments) { a in
+                                AttachmentChip(a: a) { chat.removeAttachment(a.id) }
+                            }
+                        }
+                    }
+                    .scrollIndicators(.never)
+                    if let n = chat.notice {
+                        Text(n).font(.system(size: 10)).foregroundStyle(.orange)
+                    }
+                }
+            }
+
             HStack(spacing: 8) {
-                TextField("Pergunte ao \(chat.provider.label)…", text: $chat.draft, axis: .vertical)
+                TextField(chat.attachments.isEmpty ? "Pergunte ao \(chat.provider.label)…" : "Pergunte sobre o arquivo…", text: $chat.draft, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .lineLimit(1...4)
@@ -312,7 +339,7 @@ struct ChatView: View {
                         Image(systemName: "arrow.up.circle.fill").font(.system(size: 24))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(chat.draft.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : chat.provider.color)
+                    .foregroundStyle(chat.draft.trimmingCharacters(in: .whitespaces).isEmpty && chat.attachments.isEmpty ? Color.gray : chat.provider.color)
                     .keyboardShortcut(.return, modifiers: .command)
                 }
             }
@@ -322,7 +349,7 @@ struct ChatView: View {
 
     private func send() {
         let t = chat.draft
-        guard !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !chat.isRunning else { return }
+        guard !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !chat.attachments.isEmpty, !chat.isRunning else { return }
         chat.draft = ""
         chat.send(t)
     }
@@ -356,15 +383,21 @@ struct MessageBubble: View {
     var body: some View {
         switch m.role {
         case .user:
-            HStack {
-                Spacer(minLength: 70)
-                Text(m.text)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            VStack(alignment: .trailing, spacing: 4) {
+                if !m.files.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "paperclip")
+                        Text(m.files.joined(separator: ", ")).lineLimit(1).truncationMode(.middle)
+                    }
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 70)
+                }
+                if !m.text.isEmpty {
+                    userBubble
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant:
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
@@ -390,6 +423,16 @@ struct MessageBubble: View {
         }
     }
 
+    private var userBubble: some View {
+        Text(m.text)
+            .font(.system(size: 13))
+            .foregroundStyle(.white)
+            .textSelection(.enabled)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.leading, 70)
+    }
+
     static func markdown(_ s: String) -> AttributedString {
         (try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(s)
@@ -411,6 +454,61 @@ struct TypingDots: View {
                 }
             }
             .padding(.vertical, 4)
+        }
+    }
+}
+
+struct AttachmentChip: View {
+    let a: Attachment
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if a.isImage, let img = NSImage(contentsOf: a.url) {
+                Image(nsImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 22, height: 22)
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            } else {
+                Image(systemName: a.symbol)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+            }
+            Text(a.name)
+                .font(.system(size: 11))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 150, alignment: .leading)
+            Button(action: onRemove) {
+                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.leading, 4).padding(.trailing, 9).padding(.vertical, 4)
+        .background(Color.white.opacity(0.1), in: Capsule())
+    }
+}
+
+struct DropOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.88)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
+                .padding(14)
+            VStack(spacing: 10) {
+                TucaMascot(mood: .attention).frame(width: 90, height: 56)
+                Text("Solte para anexar")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("Imagens, PDFs, planilhas, código")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }

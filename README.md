@@ -4,6 +4,7 @@ Um tucano que mora no notch do seu Mac e acompanha seus agentes de IA.
 
 - **Sessões ao vivo do Claude Code** no notch: o que ele lê, edita e roda, e quando precisa de você.
 - **Chat com Claude, Copilot, Gemini, ChatGPT e Grok usando o login de cada CLI oficial.** Sem API key: o Tuca chama `claude`, `copilot`, `gemini`, `codex` e `grok` instalados no seu Mac, e cada um usa a sua assinatura.
+- **Arraste arquivos para o notch** (imagens, PDFs, planilhas, código): o Tuca abre no chat e anexa à próxima pergunta. Claude, Gemini e ChatGPT leem imagens e PDFs direto; para Copilot, Grok e M365 o texto do PDF é extraído no próprio Mac.
 - Invisível quando não há nada acontecendo. Passe o mouse no notch para abrir.
 
 ## Compilar e instalar

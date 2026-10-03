@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         HookInstaller.writeScript()
+        AttachmentStore.purgeOld()
 
         controller = NotchController(store: store, chat: chat)
         controller.onInstallHooks = { [weak self] in self?.installHooks() }

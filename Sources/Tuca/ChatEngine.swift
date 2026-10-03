@@ -59,6 +59,7 @@ struct ChatMessage: Identifiable {
     var role: Role
     var text: String
     let provider: Provider
+    var files: [String] = []
 }
 
 /// Lê bytes de um pipe e devolve linhas completas.
@@ -96,6 +97,8 @@ final class ChatEngine: ObservableObject {
     @Published private(set) var available: [Provider: String] = [:]
     @Published private(set) var revision = 0
     @Published var draft = ""
+    @Published private(set) var attachments: [Attachment] = []
+    @Published var notice: String?
 
     private var process: Process?
     private var claudeSessionId: String?
@@ -127,6 +130,16 @@ final class ChatEngine: ObservableObject {
 
     func _inject(_ m: [ChatMessage]) { messages = m }
 
+    func attach(_ urls: [URL]) {
+        let r = AttachmentStore.importFiles(urls)
+        attachments += r.ok
+        notice = r.skipped.isEmpty ? nil : "Ignorado: " + r.skipped.joined(separator: ", ")
+    }
+
+    func removeAttachment(_ id: UUID) {
+        attachments.removeAll { $0.id == id }
+    }
+
     func newChat() {
         guard !isRunning else { return }
         messages = []
@@ -140,8 +153,11 @@ final class ChatEngine: ObservableObject {
     }
 
     func send(_ raw: String) {
-        let prompt = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty, !isRunning else { return }
+        let typed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty || !attachments.isEmpty, !isRunning else { return }
+        let files = attachments
+        let prompt = Self.withFiles(typed.isEmpty ? "Analise o conteúdo do(s) arquivo(s) anexado(s)." : typed,
+                                    files, provider: self.provider)
         let provider = self.provider
         guard let bin = available[provider] else {
             messages.append(ChatMessage(role: .error,
@@ -152,7 +168,9 @@ final class ChatEngine: ObservableObject {
         }
 
         let history = messages
-        messages.append(ChatMessage(role: .user, text: prompt, provider: provider))
+        attachments = []
+        notice = nil
+        messages.append(ChatMessage(role: .user, text: typed, provider: provider, files: files.map(\.name)))
         let reply = ChatMessage(role: .assistant, text: "", provider: provider)
         messages.append(reply)
         let replyId = reply.id
@@ -177,6 +195,7 @@ final class ChatEngine: ObservableObject {
             // Modo enxuto: sem hooks, plugins e MCPs do usuario (de 80 s para 2 s), mantendo o login OAuth.
             args += ["--output-format", "stream-json", "--verbose", "--include-partial-messages",
                      "--strict-mcp-config", "--setting-sources", "local", "--disable-slash-commands"]
+            if !files.isEmpty { args += ["--allowedTools", "Read"] }
             p.arguments = args
         case .copilot:
             p.arguments = ["-p", Self.withHistory(prompt, history), "-s", "--no-color", "--model", "auto"]
@@ -189,7 +208,9 @@ final class ChatEngine: ObservableObject {
                 .appendingPathComponent("tuca-codex-\(UUID().uuidString).txt")
             lastMessageFile = f
             p.arguments = ["exec", "--skip-git-repo-check", "--color", "never",
-                           "--output-last-message", f.path, Self.withHistory(prompt, history)]
+                           "--output-last-message", f.path]
+                + files.filter { $0.isImage }.flatMap { ["-i", $0.url.path] }
+                + [Self.withHistory(prompt, history)]
         }
 
         let out = Pipe(), err = Pipe()
@@ -269,6 +290,33 @@ final class ChatEngine: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    /// Cada CLI recebe os anexos do jeito que entende.
+    private static func withFiles(_ prompt: String, _ files: [Attachment], provider: Provider) -> String {
+        guard !files.isEmpty else { return prompt }
+        switch provider {
+        case .gemini:
+            return prompt + "\n\n" + files.map { "@" + $0.relativePath }.joined(separator: " ")
+        case .claude:
+            return prompt + "\n\nArquivos anexados (leia com a ferramenta Read antes de responder):\n"
+                + files.map { "- " + $0.url.path }.joined(separator: "\n")
+        case .codex:
+            let others = files.filter { !$0.isImage }
+            guard !others.isEmpty else { return prompt }
+            return prompt + "\n\nArquivos anexados no diretório atual:\n"
+                + others.map { "- " + $0.relativePath }.joined(separator: "\n")
+        case .copilot, .grok, .workiq:
+            var out = prompt
+            for f in files {
+                if let t = f.inlineText() {
+                    out += "\n\n--- conteúdo do arquivo \(f.name) ---\n" + t + "\n--- fim de \(f.name) ---"
+                } else {
+                    out += "\n\n(O arquivo \(f.name) foi anexado, mas esta CLI não consegue lê-lo. Avise o usuário.)"
+                }
+            }
+            return out
+        }
+    }
 
     private static func withHistory(_ prompt: String, _ history: [ChatMessage]) -> String {
         let turns = history.filter { $0.role != .error && !$0.text.isEmpty }.suffix(8)
