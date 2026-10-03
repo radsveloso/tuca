@@ -2,3 +2,4 @@
 build/
 snapshots/
 .DS_Store
+Claude outputs/

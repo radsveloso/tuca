@@ -1,0 +1,29 @@
+{
+  "size": [
+    432,
+    243
+  ],
+  "eyeBox": [
+    160,
+    46,
+    67,
+    72
+  ],
+  "eyeCenter": [
+    193.5,
+    82.0
+  ],
+  "irisCenter": [
+    197.5,
+    84.0
+  ],
+  "blinkPivotY": 88.0,
+  "source_master": "Docs/MascotKit/00_MASTER/TUCA_MASTER_APPROVED.png",
+  "source_master_sha256": "e52424a9d51f5ee328ca5b40c1643c31928f3d4fb683c389831920a84e7e014d",
+  "crop_in_master_xyxy": [
+    315,
+    0,
+    747,
+    243
+  ]
+}
