@@ -1,0 +1,78 @@
+{
+  "name": "Tuca",
+  "version": "1.0.0",
+  "status": "approved visual baseline",
+  "design_rules": {
+    "identity": [
+      "large expressive blue eye",
+      "orange/yellow beak",
+      "black beak tip",
+      "dark navy/black feathers",
+      "white face/chest",
+      "small orange/red accents"
+    ],
+    "tone": [
+      "premium",
+      "friendly",
+      "intelligent",
+      "expressive",
+      "not childish"
+    ],
+    "do_not": [
+      "redesign the mascot",
+      "replace with SF Symbol",
+      "change core palette per state",
+      "use unrelated bird assets",
+      "stretch or distort proportions"
+    ]
+  },
+  "states": [
+    "idle",
+    "watching",
+    "thinking",
+    "working",
+    "reading",
+    "writing",
+    "running",
+    "waiting",
+    "needs_attention",
+    "success",
+    "error",
+    "sleeping"
+  ],
+  "interactions": [
+    "blink",
+    "look_cursor",
+    "follow_motion",
+    "click_reaction",
+    "receive_file",
+    "drag_drop"
+  ],
+  "state_mapping": {
+    "idle": "No active work; relaxed observation",
+    "watching": "Session detected / user hovering / observing",
+    "thinking": "Provider reasoning or waiting for first output",
+    "working": "Generic active task",
+    "reading": "Read/search/file inspection event",
+    "writing": "Edit/write/create-file event",
+    "running": "Shell/command/build/test execution",
+    "waiting": "Provider waiting without user intervention",
+    "needs_attention": "Permission, approval, clarification, or user action required",
+    "success": "Task/session completed successfully; transient",
+    "error": "Command/provider/session failure; transient or until acknowledged",
+    "sleeping": "Long idle period"
+  },
+  "priority": [
+    "needs_attention",
+    "error",
+    "running",
+    "writing",
+    "reading",
+    "thinking",
+    "working",
+    "success",
+    "watching",
+    "idle",
+    "sleeping"
+  ]
+}

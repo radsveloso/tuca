@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
-
-enum Mood { case idle, working, attention, done }
+import TucaCore
 
 enum SessionState {
     case idle, working, needsYou, done
@@ -32,6 +31,9 @@ struct AgentSession: Identifiable {
     var state: SessionState
     var detail: String
     var updated: Date
+    /// Fase usada pelo mascote; `phaseSince` marca quando ela mudou.
+    var phase: SessionPhase = .started
+    var phaseSince: Date = Date()
 }
 
 @MainActor
@@ -40,6 +42,7 @@ final class SessionStore: ObservableObject {
 
     @Published private(set) var sessions: [AgentSession] = []
     @Published var hooksInstalled = HookInstaller.isInstalled
+    @Published private(set) var lastActivity = Date()
 
     var onAttention: (() -> Void)?
     var onDone: (() -> Void)?
@@ -51,12 +54,8 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    func mood(chatRunning: Bool) -> Mood {
-        if sessions.contains(where: { $0.state == .needsYou }) { return .attention }
-        if chatRunning || sessions.contains(where: { $0.state == .working }) { return .working }
-        if sessions.contains(where: { $0.state == .done }) { return .done }
-        return .idle
-    }
+    /// Snapshot do que o mascote precisa saber; a verdade continua nas sessões.
+    var signals: [SessionSignal] { sessions.map { SessionSignal(phase: $0.phase, since: $0.phaseSince) } }
 
     var workingCount: Int { sessions.filter { $0.state == .working }.count }
 
@@ -70,19 +69,27 @@ final class SessionStore: ObservableObject {
         let cwd = p["cwd"] as? String ?? ""
         // Ignora as conversas do proprio chat do Tuca.
         if cwd.hasPrefix(HookServer.supportDir.path) { return }
+        lastActivity = Date()
 
         switch event {
         case "SessionStart":
-            upsert(sid, cwd) { $0.state = .idle; $0.detail = "Sessão iniciada" }
+            upsert(sid, cwd) { $0.state = .idle; $0.detail = "Sessão iniciada"; $0.phase = .started }
         case "UserPromptSubmit":
             let prompt = (p["prompt"] as? String ?? "").oneLine(90)
-            upsert(sid, cwd) { $0.state = .working; $0.detail = prompt.isEmpty ? "Pensando…" : "› " + prompt }
+            upsert(sid, cwd) { $0.state = .working; $0.detail = prompt.isEmpty ? "Pensando…" : "› " + prompt; $0.phase = .thinking }
         case "PreToolUse":
-            let d = Self.describe(tool: p["tool_name"] as? String ?? "Tool",
-                                  input: p["tool_input"] as? [String: Any] ?? [:])
-            upsert(sid, cwd) { $0.state = .working; $0.detail = d }
-        case "PostToolUse", "PostToolUseFailure":
-            upsert(sid, cwd) { $0.state = .working }
+            let tool = p["tool_name"] as? String ?? "Tool"
+            let d = Self.describe(tool: tool, input: p["tool_input"] as? [String: Any] ?? [:])
+            let activity = ToolActivity.classify(tool: tool)
+            upsert(sid, cwd) { $0.state = .working; $0.detail = d; $0.phase = .tool(activity) }
+        case "PostToolUse":
+            // Mantém a fase da ferramenta (evita piscar entre estados); só sai de "precisa de você".
+            upsert(sid, cwd) { s in
+                s.state = .working
+                if s.phase == .needsYou { s.phase = .thinking }
+            }
+        case "PostToolUseFailure":
+            upsert(sid, cwd) { $0.state = .working; $0.phase = .failed }
         case "Notification":
             var msg = p["message"] as? String ?? "Precisa de você"
             let isPermission = msg.localizedCaseInsensitiveContains("permission")
@@ -96,13 +103,18 @@ final class SessionStore: ObservableObject {
                 if isPermission || s.state != .done {
                     s.state = .needsYou
                     s.detail = msg
+                    s.phase = .needsYou
                     alert = true
+                } else {
+                    s.phase = .waitingInput
                 }
             }
             if alert { onAttention?() }
         case "Stop":
-            upsert(sid, cwd) { $0.state = .done; $0.detail = "Concluído, sua vez" }
+            upsert(sid, cwd) { $0.state = .done; $0.detail = "Concluído, sua vez"; $0.phase = .done }
             onDone?()
+        case "StopFailure":
+            upsert(sid, cwd) { $0.state = .done; $0.detail = "Terminou com erro"; $0.phase = .failed }
         case "SessionEnd":
             remove(sid)
         default:
@@ -112,7 +124,9 @@ final class SessionStore: ObservableObject {
 
     private func upsert(_ id: String, _ cwd: String, _ mutate: (inout AgentSession) -> Void) {
         if let i = sessions.firstIndex(where: { $0.id == id }) {
+            let before = sessions[i].phase
             mutate(&sessions[i])
+            if sessions[i].phase != before { sessions[i].phaseSince = Date() }
             sessions[i].updated = Date()
             if !cwd.isEmpty { sessions[i].cwd = cwd; sessions[i].project = Self.projectName(cwd) }
         } else {

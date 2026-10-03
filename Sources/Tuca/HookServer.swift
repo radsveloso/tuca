@@ -85,8 +85,8 @@ final class HookServer: @unchecked Sendable {
 
 /// Instala e remove os hooks no ~/.claude/settings.json com backup e merge.
 enum HookInstaller {
-    static let events = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
-                         "Notification", "Stop", "SessionEnd"]
+    static let events = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+                         "Notification", "Stop", "StopFailure", "SessionEnd"]
 
     static var scriptURL: URL { HookServer.supportDir.appendingPathComponent("tuca-hook") }
     static var settingsURL: URL {

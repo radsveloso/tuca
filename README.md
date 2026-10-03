@@ -7,6 +7,14 @@ Um tucano que mora no notch do seu Mac e acompanha seus agentes de IA.
 - **Arraste arquivos para o notch** (imagens, PDFs, planilhas, código): o Tuca abre no chat e anexa à próxima pergunta. Claude, Gemini e ChatGPT leem imagens e PDFs direto; para Copilot, Grok e M365 o texto do PDF é extraído no próprio Mac.
 - Invisível quando não há nada acontecendo. Passe o mouse no notch para abrir.
 
+## Mascote (Tuca 2.0)
+
+O Tuca é desenhado em código (`Sources/Tuca/TucaMascot.swift`): um único personagem vetorial em camadas, fiel à direção aprovada em `Docs/`. Os estados vêm do `TucaCore` (`Sources/TucaCore`), que deriva tudo das sessões, do chat e do notch, sem estado próprio.
+
+Estados: tranquilo, atento, pensando, trabalhando, lendo, escrevendo, executando, aguardando, precisa de você, concluído, erro, dormindo. Prioridade: precisa de você > erro > executando > escrevendo > lendo > pensando > trabalhando > concluído > atento > aguardando > tranquilo > dormindo.
+
+Verificações do resolvedor: `swift run TucaCoreChecks`. Galeria visual: `.build/release/Tuca --snapshot <pasta>`.
+
 ## Compilar e instalar
 
 Requisitos: macOS 14+, Command Line Tools (Swift 6).

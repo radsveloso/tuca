@@ -1,4 +1,5 @@
 import AppKit
+import TucaCore
 import ServiceManagement
 
 @MainActor
@@ -16,6 +17,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller = NotchController(store: store, chat: chat)
         controller.onInstallHooks = { [weak self] in self?.installHooks() }
         controller.show()
+
+        // O mascote deriva o estado das sessões, do chat e do notch; não guarda verdade própria.
+        TucaFX.shared.inputs = { [weak self] now in
+            MainActor.assumeIsolated {
+                guard let self else { return TucaInputs(now: now) }
+                return TucaInputs(sessions: self.store.signals, chat: self.chat.signal,
+                                  hovering: self.controller.expanded,
+                                  lastActivity: max(self.store.lastActivity, self.chat.lastActivity), now: now)
+            }
+        }
 
         store.onAttention = { [weak self] in self?.controller.attention() }
         store.onDone = { NSSound(named: "Pop")?.play() }

@@ -1,4 +1,5 @@
 import SwiftUI
+import TucaCore
 
 struct NotchShape: Shape {
     var radius: CGFloat
@@ -71,39 +72,40 @@ struct CollapsedView: View {
     let height: CGFloat
 
     var body: some View {
-        let mood = store.mood(chatRunning: chat.isRunning)
         HStack {
-            TucaMascot(mood: mood)
-                .frame(width: (height - 10) * 1.6, height: height - 10)
+            // 24 a 32 pt: silhueta, olho e bico.
+            TucaMascot(slot: "collapsed")
+                .frame(width: (height - 6) * 1.4, height: height - 6)
             Spacer()
-            StatusBadge(mood: mood, count: store.workingCount)
+            StatusBadge(count: store.workingCount)
         }
         .padding(.horizontal, 14)
         .frame(height: height)
     }
 }
 
+/// Lado direito do notch: símbolo do estado (forma + cor), sem depender só de cor.
 struct StatusBadge: View {
-    let mood: Mood
     let count: Int
 
     var body: some View {
-        switch mood {
-        case .attention:
-            PulsingDot(color: SessionState.needsYou.color, size: 10)
-        case .working:
+        TimelineView(.periodic(from: .now, by: 0.5)) { tl in
+            let s = TucaFX.shared.state(at: tl.date)
             HStack(spacing: 4) {
-                PulsingDot(color: .orange, size: 8)
+                switch s {
+                case .idle, .sleeping:
+                    EmptyView()
+                case .needsAttention:
+                    Image(systemName: s.symbol).font(.system(size: 13, weight: .bold)).foregroundStyle(s.tint)
+                default:
+                    Image(systemName: s.symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(s.tint)
+                }
                 if count > 1 {
                     Text("\(count)").font(.system(size: 11, weight: .bold, design: .rounded)).foregroundStyle(.white)
                 }
             }
-        case .done:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(SessionState.done.color)
-        case .idle:
-            EmptyView()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(s.label)
         }
     }
 }
@@ -133,11 +135,16 @@ struct ExpandedView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                TucaMascot(mood: store.mood(chatRunning: chat.isRunning))
-                    .frame(width: 40, height: 25)
-                Text("Tuca")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                TucaMascot(slot: "header")
+                    .frame(width: 52, height: 37)
+                    .contentShape(Rectangle())
+                    .onTapGesture { TucaFX.shared.clickAt = Date() }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Tuca")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    TucaStateLabel()
+                }
                 Picker("", selection: $c.tab) {
                     Text("Sessões").tag(IslandTab.sessions)
                     Text("Chat").tag(IslandTab.chat)
@@ -501,7 +508,7 @@ struct DropOverlay: View {
                 .strokeBorder(Color.orange.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
                 .padding(14)
             VStack(spacing: 10) {
-                TucaMascot(mood: .attention).frame(width: 90, height: 56)
+                TucaMascot(slot: "drop").frame(width: 120, height: 86)
                 Text("Solte para anexar")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)

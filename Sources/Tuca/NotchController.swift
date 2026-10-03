@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TucaCore
 
 final class NotchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -35,7 +36,9 @@ final class NotchController: ObservableObject {
     @Published private(set) var expanded = false
     @Published var tab: IslandTab = .sessions
     @Published var pinned = false
-    @Published var dropTargeted = false
+    @Published var dropTargeted = false {
+        didSet { TucaFX.shared.dragHover = dropTargeted }
+    }
     private var lastDropChange = -1
     @Published private(set) var geo = NotchGeometry.current()
 
@@ -124,6 +127,9 @@ final class NotchController: ObservableObject {
     }
 
     private func mouseMoved() {
+        let fx = TucaFX.shared
+        fx.mouse = NSEvent.mouseLocation
+        fx.anchor = CGPoint(x: geo.screen.frame.midX, y: geo.screen.frame.maxY - geo.notchHeight / 2)
         if expanded {
             if mouseInside(margin: 14) {
                 collapseWork?.cancel()
@@ -149,6 +155,7 @@ final class NotchController: ObservableObject {
     func handleDrop(_ urls: [URL]) {
         lastDropChange = NSPasteboard(name: .drag).changeCount
         dropTargeted = false
+        TucaFX.shared.receivedAt = Date()
         chat.attach(urls)
         tab = .chat
         expand()

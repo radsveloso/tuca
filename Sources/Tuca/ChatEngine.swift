@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import TucaCore
 
 enum Provider: String, CaseIterable, Identifiable {
     case claude, copilot, gemini, codex, grok, workiq
@@ -99,6 +100,9 @@ final class ChatEngine: ObservableObject {
     @Published var draft = ""
     @Published private(set) var attachments: [Attachment] = []
     @Published var notice: String?
+    /// Sinal para o mascote: pensando, recebendo resposta, sucesso ou erro.
+    @Published private(set) var signal: ChatSignal = .idle
+    private(set) var lastActivity = Date.distantPast
 
     private var process: Process?
     private var claudeSessionId: String?
@@ -164,6 +168,7 @@ final class ChatEngine: ObservableObject {
                 text: "\(provider.label) não está instalado. No Terminal: \(provider.installHint)",
                 provider: provider))
             revision += 1
+            signal = .failed(Date())
             return
         }
 
@@ -177,6 +182,8 @@ final class ChatEngine: ObservableObject {
         revision += 1
         isRunning = true
         stopped = false
+        signal = .thinking
+        lastActivity = Date()
 
         let p = Process()
         p.executableURL = URL(fileURLWithPath: bin)
@@ -382,12 +389,18 @@ final class ChatEngine: ObservableObject {
         guard let i = index(id) else { return }
         messages[i].text += t
         revision += 1
+        markStreaming(i)
     }
 
     private func setText(_ id: UUID, _ t: String) {
         guard let i = index(id) else { return }
         messages[i].text = t
         revision += 1
+        markStreaming(i)
+    }
+
+    private func markStreaming(_ i: Int) {
+        if signal == .thinking, messages[i].role == .assistant, !messages[i].text.isEmpty { signal = .streaming }
     }
 
     private func finish(_ id: UUID, fallback: String, isError: Bool) {
@@ -395,6 +408,8 @@ final class ChatEngine: ObservableObject {
             messages[i].text = fallback
             if isError { messages[i].role = .error }
         }
+        signal = isError ? .failed(Date()) : (stopped ? .idle : .succeeded(Date()))
+        lastActivity = Date()
         isRunning = false
         process = nil
         revision += 1
