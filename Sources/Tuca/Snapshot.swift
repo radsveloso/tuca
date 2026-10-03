@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TucaCharacter
 import TucaCore
 
 /// Modo de verificação: `Tuca --snapshot <pasta>` renderiza as telas em PNG e sai.
@@ -52,33 +53,6 @@ enum Snapshot {
                 try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name + ".png"))
             }
         }
-
-        // Galeria: todos os estados em 128, 64 e 28 pt de altura.
-        let gallery = VStack(alignment: .leading, spacing: 10) {
-            ForEach([128.0, 64.0, 32.0, 24.0], id: \.self) { h in
-                HStack(alignment: .bottom, spacing: 8) {
-                    ForEach(TucaVisualState.allCases, id: \.self) { st in
-                        VStack(spacing: 4) {
-                            TucaMascotView(slot: "g\(h)\(st)", forced: st, forcedInteraction: TucaInteraction.none).frame(width: h * TucaArt.aspect, height: h)
-                            if h == 128 { Text(st.label).font(.system(size: 11)).foregroundStyle(.white) }
-                        }
-                    }
-                }
-            }
-            HStack(spacing: 14) {
-                ForEach([("Arrastando", TucaInteraction.dragHover), ("Recebendo", .receivingFile), ("Clique", .clickReaction)], id: \.0) { item in
-                    VStack(spacing: 4) {
-                        TucaMascotView(slot: "i\(item.0)", forced: .idle, forcedInteraction: item.1).frame(width: 128 * TucaArt.aspect, height: 128)
-                        Text(item.0).font(.system(size: 11)).foregroundStyle(.white)
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .background(Color.black)
-        TucaFX.shared.receivedAt = Date().addingTimeInterval(-0.25)
-        TucaFX.shared.clickAt = Date().addingTimeInterval(-0.3)
-        save(gallery, "0-gallery")
 
         render("1-collapsed")
         c._setExpanded(true)

@@ -9,9 +9,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Tuca "$APP/Contents/MacOS/Tuca"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
-# Arte oficial do Tuca (derivada do master aprovado)
-mkdir -p "$APP/Contents/Resources/TucaMascot"
-cp Resources/TucaMascotAssets/*.png "$APP/Contents/Resources/TucaMascot/"
+# Rig do Tuca (Character Engine 3.0), derivado do master aprovado
+cp -R Resources/TucaCharacterArt "$APP/Contents/Resources/TucaCharacterArt"
 codesign --force -s - "$APP"
 if [ "$1" = "--install" ]; then
   pkill -x Tuca 2>/dev/null || true

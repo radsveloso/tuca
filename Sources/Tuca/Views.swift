@@ -1,4 +1,5 @@
 import SwiftUI
+import TucaCharacter
 import TucaCore
 
 struct NotchShape: Shape {
@@ -74,8 +75,8 @@ struct CollapsedView: View {
     var body: some View {
         HStack {
             // 24 a 32 pt: silhueta, olho e bico.
-            TucaMascotView(slot: "collapsed")
-                .frame(width: (height - 6) * TucaArt.aspect, height: height - 6)
+            TucaCharacterSlot(margins: CGSize(width: 1.04, height: 1.06))
+                .frame(width: (height - 4) * 1.78 * 1.04 / 1.06, height: height - 4)
             Spacer()
             StatusBadge(count: store.workingCount)
         }
@@ -135,10 +136,8 @@ struct ExpandedView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                TucaMascotView(slot: "header")
-                    .frame(width: 66, height: 37)
-                    .contentShape(Rectangle())
-                    .onTapGesture { TucaFX.shared.clickAt = Date() }
+                TucaCharacterSlot(margins: CGSize(width: 1.08, height: 1.14))
+                    .frame(width: 70, height: 42)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Tuca")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
@@ -508,7 +507,7 @@ struct DropOverlay: View {
                 .strokeBorder(Color.orange.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
                 .padding(14)
             VStack(spacing: 10) {
-                TucaMascotView(slot: "drop").frame(width: 160, height: 90)
+                TucaCharacterSlot().frame(width: 190, height: 104)
                 Text("Solte para anexar")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)

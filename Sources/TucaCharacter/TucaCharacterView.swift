@@ -27,9 +27,22 @@ public final class TucaCharacterView: NSView {
     public var onWake: (() -> Void)?
     /// Chamado quando um arquivo é solto no personagem.
     public var onDropFiles: (([URL]) -> Void)?
+    /// false quando quem recebe o arraste é a interface em volta (o notch).
+    public var acceptsFileDrops = true {
+        didSet { if acceptsFileDrops { registerForDraggedTypes([.fileURL]) } else { unregisterDraggedTypes() } }
+    }
     /// Substitui o cursor real (modo de renderização de verificação). Vetor de olhar -1...1.
     public var cursorOverride: (() -> CGPoint?)?
-    public private(set) var diagnostics = ""
+    /// Texto de diagnóstico (montado só quando pedido).
+    public var diagnostics: String {
+        String(format: "estado: %@ · olho %.2f · olhar (%.2f, %.2f) · inclinação %.1f°%@",
+               state.label, eye.value, lookX.value, lookY.value, tilt.value * 180 / .pi,
+               reduce ? " · movimento reduzido" : "")
+    }
+    /// Chamado no início de cada quadro: o app usa para alimentar estado e interações.
+    public var onTick: ((TucaCharacterView) -> Void)?
+    /// Folga em volta do personagem (largura, altura) para pulos e overlays. No notch, menor.
+    public var fitMargins = CGSize(width: 1.18, height: 1.32) { didSet { fit() } }
 
     public func blink() { startBlink(double: false) }
 
@@ -75,6 +88,9 @@ public final class TucaCharacterView: NSView {
         layer?.masksToBounds = false
         buildLayers()
         registerForDraggedTypes([.fileURL])
+        setAccessibilityElement(true)
+        setAccessibilityRole(.image)
+        setAccessibilityLabel("Tuca, \(state.label)")
         scheduleNextBlink()
         nextGlance = 1.5
         nextPosture = 3
@@ -88,15 +104,21 @@ public final class TucaCharacterView: NSView {
         super.viewDidMoveToWindow()
         guard !manualClock else { return }
         link?.invalidate()
+        link = nil
         if window != nil {
             let l = displayLink(target: self, selector: #selector(tick(_:)))
+            // 60 fps bastam para o personagem e economizam CPU em telas de 120 Hz.
             l.add(to: .main, forMode: .common)
             link = l
+            fit()
         }
         updateTrackingAreas()
     }
 
     @objc private func tick(_ l: CADisplayLink) {
+        // Sem trabalho quando ninguém vê o personagem (0% de CPU com o notch escondido).
+        guard let w = window, w.isVisible, !isHiddenOrHasHiddenAncestor, !visibleRect.isEmpty,
+              bounds.width > 1, bounds.height > 1 else { return }
         advance(to: l.targetTimestamp)
     }
 
@@ -105,6 +127,7 @@ public final class TucaCharacterView: NSView {
         if now == 0 { now = t - 1.0 / 60; stateStart = now }
         let dt = max(0, min(t - now, 1.0 / 15))
         now = t
+        onTick?(self)
         update(dt)
         apply()
     }
@@ -222,13 +245,17 @@ public final class TucaCharacterView: NSView {
 
     private func fit() {
         let W = artSize.width, H = artSize.height
-        let s = min(bounds.width / (W * 1.18), bounds.height / (H * 1.32))
+        let s = min(bounds.width / (W * fitMargins.width), bounds.height / (H * fitMargins.height))
         fitScale = max(s, 0.01)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         rig.position = CGPoint(x: bounds.midX, y: bounds.midY - H * fitScale * 0.06)
         rig.setAffineTransform(CGAffineTransform(scaleX: fitScale, y: fitScale))
         CATransaction.commit()
+        let compact = Double(H * fitScale) < T.overlayMinHeight
+        link?.preferredFrameRateRange = compact
+            ? CAFrameRateRange(minimum: 24, maximum: 30, preferred: 30)
+            : CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
     }
 
     // MARK: Estado do motor
@@ -282,6 +309,7 @@ public final class TucaCharacterView: NSView {
 
     private func enterState(from old: TucaVisualState) {
         stateStart = now
+        setAccessibilityLabel("Tuca, \(state.label)")
         lastHopCycle = -1
         if old == .sleeping && now - wakeStart > 0.25 { wakeUp() }
         guard !reduce else { return }
@@ -465,9 +493,6 @@ public final class TucaCharacterView: NSView {
             x.step(dt); y.step(dt); sx.step(dt); sy.step(dt); attentionScale.step(dt)
         }
 
-        diagnostics = String(format: "estado: %@ · olho %.2f · olhar (%.2f, %.2f) · inclinação %.1f°%@",
-                             state.label, eye.value, lookX.value, lookY.value, tilt.value * 180 / .pi,
-                             reduce ? " · movimento reduzido" : "")
     }
 
     // MARK: Aplicação nas camadas
@@ -492,7 +517,7 @@ public final class TucaCharacterView: NSView {
         history.append(t)
         if history.count > 8 { history.removeFirst(history.count - 8) }
         let trail = state == .running && m > 0
-        for (i, g) in ghosts.enumerated() {
+        for (i, g) in ghosts.enumerated() where trail || g.opacity != 0 {
             let idx = max(0, history.count - 1 - (i + 1) * 3)
             var gt = history[idx]
             gt = CATransform3DTranslate(gt, -8 * Double(i + 1), 0, 0)
@@ -509,6 +534,10 @@ public final class TucaCharacterView: NSView {
         // Overlays (somem em tamanhos de notch)
         let showOverlays = Double(artSize.height * fitScale) >= T.overlayMinHeight
         overlays.opacity = showOverlays ? 1 : 0
+        guard showOverlays else {
+            CATransaction.commit()
+            return
+        }
         overlays.transform = CATransform3DMakeTranslation(x.value * 0.6, -y.value * 0.6, 0)
 
         let attOn = state == .needsAttention

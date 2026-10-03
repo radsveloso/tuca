@@ -46,6 +46,7 @@ enum RenderMode {
             if t == 0.3 { v.state = .needsAttention }
         }
         sizes(out: out)
+        notchPreview(out: out)
         print("ok")
     }
 
@@ -101,6 +102,36 @@ enum RenderMode {
             x += size.width + 16
         }
         save(ctx.makeImage(), out.appendingPathComponent("sizes_24_to_256.png"))
+    }
+
+    /// O personagem nas medidas reais do notch: recolhido, cabeçalho e área de soltar.
+    static func notchPreview(out: URL) {
+        let slots: [(CGSize, CGSize, TucaVisualState)] = [
+            (CGSize(width: 33 * 1.78 * 1.04 / 1.06, height: 33), CGSize(width: 1.04, height: 1.06), .running),
+            (CGSize(width: 70, height: 42), CGSize(width: 1.08, height: 1.14), .needsAttention),
+            (CGSize(width: 190, height: 104), CGSize(width: 1.18, height: 1.32), .idle),
+        ]
+        let scale: CGFloat = 3
+        let W = slots.reduce(0) { $0 + $1.0.width + 20 }, H: CGFloat = 110
+        guard let ctx = CGContext(data: nil, width: Int(W * scale), height: Int(H * scale), bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+        ctx.setFillColor(CGColor(gray: 0, alpha: 1)); ctx.fill(CGRect(x: 0, y: 0, width: W * scale, height: H * scale))
+        var x: CGFloat = 0
+        for (size, margins, st) in slots {
+            let v = TucaCharacterView(frame: CGRect(origin: .zero, size: size), seed: 5, manualClock: true)
+            v.fitMargins = margins
+            v.cursorOverride = { nil }
+            v.advance(to: 300)
+            v.state = st
+            v.advance(to: 301.2)
+            if let img = v.renderImage(scale: scale) {
+                ctx.setStrokeColor(CGColor(gray: 0.35, alpha: 1)); ctx.setLineWidth(1)
+                ctx.stroke(CGRect(x: x * scale, y: (H - size.height) * scale, width: size.width * scale, height: size.height * scale))
+                ctx.draw(img, in: CGRect(x: x * scale, y: (H - size.height) * scale, width: size.width * scale, height: size.height * scale))
+            }
+            x += size.width + 20
+        }
+        save(ctx.makeImage(), out.appendingPathComponent("notch_slots.png"))
     }
 
     static func save(_ img: CGImage?, _ url: URL) {

@@ -7,13 +7,15 @@ Um tucano que mora no notch do seu Mac e acompanha seus agentes de IA.
 - **Arraste arquivos para o notch** (imagens, PDFs, planilhas, código): o Tuca abre no chat e anexa à próxima pergunta. Claude, Gemini e ChatGPT leem imagens e PDFs direto; para Copilot, Grok e M365 o texto do PDF é extraído no próprio Mac.
 - Invisível quando não há nada acontecendo. Passe o mouse no notch para abrir.
 
-## Mascote (Tuca oficial)
+## Mascote (Character Engine 3.0)
 
-O Tuca é a arte oficial aprovada (`Docs/MascotKit/00_MASTER/TUCA_MASTER_APPROVED.png`), não um desenho em código. `Resources/TucaMascotAssets/tuca_base.png` é o Tuca do master com fundo transparente (RGB idêntico ao master; procedência em `provenance.json`). O `TucaMascotView` (`Sources/Tuca/TucaMascot.swift`) compõe essa arte com transformações SwiftUI e os overlays SVG oficiais; estados sem arte própria reutilizam o mesmo Tuca. O estado vem do `TucaCore`, que deriva tudo das sessões, do chat e do notch.
+O Tuca do notch é um rig em Core Animation (`Sources/TucaCharacter`) montado com camadas extraídas do master aprovado (`Resources/TucaCharacterArt`): corpo, olho, íris e aro. Ele respira, pisca, segue o cursor com o olhar e reage a cliques, arraste de arquivos e a cada estado. O estado vem do `TucaCore` (sessões do Claude Code, chat e notch); tempos e amplitudes ficam em `TucaMotionTokens.swift`. Respeita o Reduzir movimento do macOS.
 
-Prioridade: precisa de você > erro > executando > escrevendo > lendo > pensando > trabalhando > concluído > atento > aguardando > tranquilo > dormindo.
+- Playground para testar o personagem: `./build-playground.sh --open`
+- Gravações de verificação: `.build/release/TucaPlayground --render <pasta>`
+- Arquitetura e arte que falta: `Docs/CharacterEngine/`
 
-Verificações: `swift run TucaCoreChecks`. Galeria visual (128, 64, 32 e 24 pt): `.build/release/Tuca --snapshot <pasta>`.
+Prioridade dos estados: precisa de você > erro > executando > escrevendo > lendo > pensando > trabalhando > concluído > atento > aguardando > tranquilo > dormindo.
 
 ## Compilar e instalar
 
