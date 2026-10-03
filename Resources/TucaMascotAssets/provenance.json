@@ -1,0 +1,21 @@
+{
+  "source": "Docs/MascotKit/00_MASTER/TUCA_MASTER_APPROVED.png",
+  "source_sha256": "e52424a9d51f5ee328ca5b40c1643c31928f3d4fb683c389831920a84e7e014d",
+  "crop_in_master_xyxy": [
+    316,
+    0,
+    748,
+    243
+  ],
+  "method": "RGB copiado do master sem alteração; alpha por segmentação ISNet (rembg isnet-general-use), maior componente, curva de alpha 12..190",
+  "files": {
+    "tuca_base.png": [
+      432,
+      243
+    ],
+    "tuca_base_small.png": [
+      171,
+      96
+    ]
+  }
+}

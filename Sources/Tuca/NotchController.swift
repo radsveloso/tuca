@@ -46,7 +46,7 @@ final class NotchController: ObservableObject {
     let chat: ChatEngine
     var onInstallHooks: (() -> Void)?
 
-    static let ear: CGFloat = 64
+    static let ear: CGFloat = 76
     static let expandedSize = CGSize(width: 580, height: 360)
 
     private var panel: NotchPanel!

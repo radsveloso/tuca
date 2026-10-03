@@ -74,8 +74,8 @@ struct CollapsedView: View {
     var body: some View {
         HStack {
             // 24 a 32 pt: silhueta, olho e bico.
-            TucaMascot(slot: "collapsed")
-                .frame(width: (height - 6) * 1.4, height: height - 6)
+            TucaMascotView(slot: "collapsed")
+                .frame(width: (height - 6) * TucaArt.aspect, height: height - 6)
             Spacer()
             StatusBadge(count: store.workingCount)
         }
@@ -135,8 +135,8 @@ struct ExpandedView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                TucaMascot(slot: "header")
-                    .frame(width: 52, height: 37)
+                TucaMascotView(slot: "header")
+                    .frame(width: 66, height: 37)
                     .contentShape(Rectangle())
                     .onTapGesture { TucaFX.shared.clickAt = Date() }
                 VStack(alignment: .leading, spacing: 1) {
@@ -508,7 +508,7 @@ struct DropOverlay: View {
                 .strokeBorder(Color.orange.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
                 .padding(14)
             VStack(spacing: 10) {
-                TucaMascot(slot: "drop").frame(width: 120, height: 86)
+                TucaMascotView(slot: "drop").frame(width: 160, height: 90)
                 Text("Solte para anexar")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)

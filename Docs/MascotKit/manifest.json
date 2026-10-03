@@ -1,0 +1,41 @@
+{
+  "kit": "Tuca Official Mascot Kit",
+  "version": "1.0",
+  "master": "00_MASTER/TUCA_MASTER_APPROVED.png",
+  "master_rule": "The approved master is the visual source of truth. Never procedurally redraw or vectorize the mascot as a replacement.",
+  "rendering_strategy": "hybrid",
+  "strategy": {
+    "mascot": "transparent high-resolution raster/layered assets derived faithfully from approved master",
+    "overlays": "SVG",
+    "composition_motion": "SwiftUI/Core Animation",
+    "future_upgrade": "Rive/Lottie or layered frame animation only if it preserves the exact approved appearance"
+  },
+  "states": [
+    "idle",
+    "watching",
+    "thinking",
+    "working",
+    "reading",
+    "writing",
+    "running",
+    "waiting",
+    "needs_attention",
+    "success",
+    "error",
+    "sleeping"
+  ],
+  "palette": {
+    "beak_primary": "#FF8A00",
+    "accent": "#FF4D00",
+    "eyes": "#15A6FF",
+    "face_chest": "#F7F7F9",
+    "body": "dark navy/black from approved master"
+  },
+  "hard_constraints": [
+    "Do not replace Tuca with Canvas ellipses/paths.",
+    "Do not reinterpret the face, eye, beak, feather texture, silhouette or proportions.",
+    "Do not use independently generated variants that visually morph between states.",
+    "Keep existing auth/CLI architecture untouched.",
+    "Keep TucaCore state logic unless a bug requires a minimal change."
+  ]
+}
